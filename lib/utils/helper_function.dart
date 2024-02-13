@@ -1,5 +1,17 @@
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+
+Future<bool> setTempStatus(bool status) async{
+  final preference = await SharedPreferences.getInstance();
+  return preference.setBool('status', status);
+}
+
+Future<bool> getTempStatus() async{
+  final preference = await SharedPreferences.getInstance();
+  return preference.getBool('status') ?? false;
+}
 
 String getFormattedDate(num dt, String format){
   return DateFormat().format(DateTime.fromMillisecondsSinceEpoch(dt.toInt() * 1000));

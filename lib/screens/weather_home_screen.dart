@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart' as Geo;
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:weather_app/provider/weather_provider.dart';
 import 'package:weather_app/screens/settings_page.dart';
@@ -17,20 +19,27 @@ class WeatherHomeScreen extends StatefulWidget {
 class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
   late WeatherProvider _provider;
   bool _isInit = true;
+
+
   @override
   void didChangeDependencies() {
     if(_isInit){
       _provider = Provider.of<WeatherProvider>(context);
-      determinePosition().then((position) {
-        _provider.setPosition(position);
-        _provider.getCurrentData();
-        _provider.getForecastData();
-        print('lat: ${position.latitude}, log: ${position.longitude}');
-        _isInit = false;
-      });
+      _provider.getStatus();
+     _init();
     }
     super.didChangeDependencies();
   }
+
+  void _init() {
+    determinePosition().then((position) {
+      _provider.setNewPosition(position.latitude, position.longitude);
+      _provider.getData();
+      print('lat: ${position.latitude}, log: ${position.longitude}');
+      _isInit = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,13 +52,29 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
           IconButton(
             icon: Icon(Icons.my_location),
             onPressed: (){
-
+              _init();
             },
           ),
           IconButton(
             icon: Icon(Icons.search),
-            onPressed: (){
+            onPressed: () async{
+              final city = await showSearch(context: context, delegate: _CitySearchDelegate());
+              if(city != null && city.isNotEmpty) {
 
+                try{
+                  final locationList = await Geo.locationFromAddress(city);
+                  if(locationList.isNotEmpty) {
+                    final location = locationList.first;
+                    _provider.setNewPosition(location.latitude, location.longitude);
+                    _provider.getData();
+                  }
+                }catch(error) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: const Text("Could not find any result for the supplied address"),
+                    // duration: const Duration(seconds: 5),
+                  ));
+                }
+              }
             },
           ),
           IconButton(
@@ -71,7 +96,7 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
                 Column(
                   children: [
                     Text(getFormattedDate(_provider.currentModel!.dt!, 'EEE MMM, YYYY'), style: TextStyle(fontSize: 16),),
-                    Text('${_provider.currentModel!.name}, ${_provider.currentModel!.sys!.country!}', style:  TextStyle(fontSize: 22),),
+                    Text('${_provider.currentModel!.name}, ${_provider.currentModel!.sys!.country}', style:  TextStyle(fontSize: 22),),
                     Text('${_provider.currentModel!.main!.temp!.toStringAsFixed(2)}\u00B0',style:  TextStyle(fontSize: 80),),
                     Text('feels like ${_provider.currentModel!.main!.feelsLike!.round()}\u00B0', style: TextStyle(fontSize: 20),),
                     Row(
@@ -117,7 +142,61 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
             ),
           )
         ],
-      ) : Center(child: const Text('Please wait...'),),
+      ) : const Center(child: CircularProgressIndicator(),),
     );
   }
+}
+
+
+class _CitySearchDelegate extends SearchDelegate<String>{
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () {
+          query = "";
+        },
+      )
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {
+        close(context, "");
+      },
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return ListTile(
+      onTap: () {
+        close(context, query);
+      },
+      leading: const Icon(Icons.search),
+      title: Text(query),
+    );
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    final filteredList = query.isEmpty ? cities : cities.where((element) => element.toLowerCase().startsWith(query.toLowerCase())).toList();
+    return ListView.builder(
+      itemCount: filteredList.length,
+      itemBuilder: (context, index) {
+        ListTile(
+          onTap: () {
+            query = filteredList[index];
+            close(context, query);
+          },
+          title: Text(filteredList[index]),
+        );
+      },
+    );
+  }
+
 }

@@ -1,17 +1,16 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:weather_app/models/current_weather_model.dart';
 import 'package:weather_app/models/forecast_weather_model.dart';
 import 'package:weather_app/utils/constants.dart';
 import 'package:http/http.dart' as Http;
+import 'package:weather_app/utils/helper_function.dart';
 
 
 class WeatherProvider with ChangeNotifier {
   double latitude = 0.0;
   double longitude = 0.0;
-  late Position position;
   CurrentWeatherModel? _currentModel;
   ForecastWeatherModel? _forecastModel;
   String? city;
@@ -24,15 +23,27 @@ class WeatherProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void getStatus() async{
+    status = await getTempStatus();
+    tempUnit = status ? 'imperial' : 'metric';
+    notifyListeners();
+  }
+
   CurrentWeatherModel? get currentModel => _currentModel;
   ForecastWeatherModel? get forecastModel => _forecastModel;
 
-  void setPosition(Position pos) {
-    position = pos;
+  void setNewPosition(double lat, double lon) {
+    latitude = lat;
+    longitude = lon;
   }
 
-  Future<void> getCurrentData() async{
-    final url  = 'https://api.openweathermap.org/data/2.5/weather?lat=${position.latitude}&lon=${position.longitude}&units=metric&appid=$weatherApiKey';
+  void getData() {
+    _getCurrentData();
+    _getForecastData();
+  }
+
+  Future<void> _getCurrentData() async{
+    final url  = 'https://api.openweathermap.org/data/2.5/weather?lat=$latitude&lon=$longitude&units=$tempUnit&appid=$weatherApiKey';
     try{
       final response = await Http.get(Uri.parse(url));
       final map = json.decode(response.body);
@@ -47,8 +58,8 @@ class WeatherProvider with ChangeNotifier {
     }
   }
 
-  Future<void> getForecastData() async{
-    final url  = 'https://api.openweathermap.org/data/2.5/forecast?lat=${position.latitude}&lon=${position.longitude}&units=metric&appid=$weatherApiKey';
+  Future<void> _getForecastData() async{
+    final url  = 'https://api.openweathermap.org/data/2.5/forecast?lat=$latitude&lon=$longitude&units=$tempUnit&appid=$weatherApiKey';
     try{
       final response = await Http.get(Uri.parse(url));
       final map = json.decode(response.body);
