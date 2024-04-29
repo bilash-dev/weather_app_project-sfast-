@@ -3,6 +3,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 
+double latitude = 0.0;
+double longitude = 0.0;
+
+void setNewPosition(double lat, double lon) {
+  latitude = lat;
+  longitude = lon;
+}
+
+
 Future<bool> setTempStatus(bool status) async{
   final preference = await SharedPreferences.getInstance();
   return preference.setBool('status', status);
@@ -18,7 +27,13 @@ String getFormattedDate(num dt, String format){
 
 }
 
-//Current Position determine
+String formattedDate(int timestamp){
+  var dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+  return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+
+}
+
+//Current Position
 
 Future<Position> determinePosition() async {
   bool serviceEnabled;

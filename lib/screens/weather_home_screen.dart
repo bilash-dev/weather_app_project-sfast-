@@ -1,12 +1,20 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geocoding/geocoding.dart' as Geo;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:weather_app/provider/weather_provider.dart';
+import 'package:weather_app/bloc/forecast_weather_bloc.dart';
+import 'package:weather_app/bloc/forecast_weather_event.dart';
+import 'package:weather_app/bloc/forecast_weather_state.dart';
+import 'package:weather_app/repo/weather_repo.dart';
 import 'package:weather_app/screens/settings_page.dart';
 import 'package:weather_app/utils/constants.dart';
 import 'package:weather_app/utils/helper_function.dart';
+
+import '../bloc/weather_bloc.dart';
+import '../bloc/weather_event.dart';
+import '../bloc/weather_state.dart';
 
 class WeatherHomeScreen extends StatefulWidget {
   const WeatherHomeScreen({Key? key}) : super(key: key);
@@ -17,15 +25,21 @@ class WeatherHomeScreen extends StatefulWidget {
 }
 
 class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
-  late WeatherProvider _provider;
+  // late WeatherProvider _provider;
   bool _isInit = true;
+ late WeatherRepo weatherRepo = WeatherRepo();
+ final CurrentWeatherBloc currentWeatherBloc = CurrentWeatherBloc(WeatherRepo());
+ final ForecastWeatherBloc forecastWeatherBloc = ForecastWeatherBloc(WeatherRepo());
+ final TextEditingController _textEditingController = TextEditingController();
+
 
 
   @override
   void didChangeDependencies() {
     if(_isInit){
-      _provider = Provider.of<WeatherProvider>(context);
-      _provider.getStatus();
+
+        context.read<CurrentWeatherBloc>().add(CurrentWeatherLoadEvent());
+        context.read<ForecastWeatherBloc>().add(ForecastWeatherLoadEvent());
      _init();
     }
     super.didChangeDependencies();
@@ -33,8 +47,21 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
 
   void _init() {
     determinePosition().then((position) {
-      _provider.setNewPosition(position.latitude, position.longitude);
-      _provider.getData();
+      currentWeatherBloc.weatherRepo.setNewPosition(position.latitude, position.longitude);
+      // weatherRepo.getData();
+      weatherRepo.getCurrentData();
+      weatherRepo.getForecastData();
+      print('lat: ${position.latitude}, log: ${position.longitude}');
+      _isInit = false;
+    });
+  }
+
+  void _position() {
+    determinePosition().then((position) {
+      currentWeatherBloc.weatherRepo.setNewPosition(position.latitude, position.longitude);
+      // weatherRepo.getData();
+      currentWeatherBloc.weatherRepo.getCurrentData();
+      currentWeatherBloc.weatherRepo.getForecastData();
       print('lat: ${position.latitude}, log: ${position.longitude}');
       _isInit = false;
     });
@@ -43,6 +70,7 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // backgroundColor: Colors.lightBlue,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text('Weather App'),
@@ -65,8 +93,9 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
                   final locationList = await Geo.locationFromAddress(city);
                   if(locationList.isNotEmpty) {
                     final location = locationList.first;
-                    _provider.setNewPosition(location.latitude, location.longitude);
-                    _provider.getData();
+                    weatherRepo.setNewPosition(location.latitude, location.longitude);
+                    currentWeatherBloc.weatherRepo.getData();
+                    // currentWeatherBloc.weatherRepo.searchWeatherData();
                   }
                 }catch(error) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -77,72 +106,119 @@ class _WeatherHomeScreenState extends State<WeatherHomeScreen> {
               }
             },
           ),
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: (){
-              Navigator.pushNamed(context, SettingsPage.routeName);
-            },
-          )
+          // IconButton(
+          //   icon: Icon(Icons.settings),
+          //   onPressed: (){
+          //     // Navigator.pushNamed(context, SettingsPage.routeName);
+          //   },
+          // )
         ],
       ),
-      body: _provider.currentModel != null && _provider.forecastModel != null ? Stack(
+      body: Stack(
+
         children: [
-          Image.asset('images/sunset.jpg', width: double.infinity,height: double.infinity,fit: BoxFit.cover,),
-          Center(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const SizedBox(height: 80,),
-                Column(
-                  children: [
-                    Text(getFormattedDate(_provider.currentModel!.dt!, 'EEE MMM, YYYY'), style: TextStyle(fontSize: 16),),
-                    Text('${_provider.currentModel!.name}, ${_provider.currentModel!.sys!.country}', style:  TextStyle(fontSize: 22),),
-                    Text('${_provider.currentModel!.main!.temp!.toStringAsFixed(2)}\u00B0',style:  TextStyle(fontSize: 80),),
-                    Text('feels like ${_provider.currentModel!.main!.feelsLike!.round()}\u00B0', style: TextStyle(fontSize: 20),),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.network('$icon_prefix${_provider.currentModel!.weather![0].icon}$icon_suffix', width: 50, height: 50, fit: BoxFit.cover,),
-                        Text('${_provider.currentModel!.weather![0].description}')
-                      ],
-                    )
-                  ],
-                ),
-                SizedBox(height: 20,),
-                SizedBox(
-                  width: double.maxFinite,
-                  height: 200,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _provider.forecastModel!.list!.length,
-                    itemBuilder: (context, i){
-                      final item = _provider.forecastModel!.list![i];
-                      return Card(
-                        color: Colors.black.withOpacity(0.3),
-                        margin: EdgeInsets.all(4),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(getFormattedDate(item.dt!, 'EEE HH:mm')),
-                                Image.network('$icon_prefix${item.weather![0].icon}$icon_suffix', width: 50, height: 50, fit: BoxFit.cover,),
-                                Text('${item.main!.tempMax!.round()}/${item.main!.tempMin!.round()}\u00B0'),
-                                Text(item.weather![0].description!)
+          Image.asset('images/seabeach.jpg',height:double.maxFinite,fit: BoxFit.cover,),
+           BlocBuilder<CurrentWeatherBloc, CurrentWeatherState>(
+              // bloc: currentWeatherBloc,
+              builder: (context, state){
+                if(state is CurrentWeatherLoading){
+                  return Center(child: CircularProgressIndicator.adaptive());
+                }else if(state is CurrentWeatherLoaded){
+                  final currentWeatherData = state.weatherData;
+                  print(currentWeatherData.dt);
+                  return Center(
+                    child: ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: [
+                         const SizedBox(height: 80,),
+                           Column(
+                             children: [
+
+                                Text(getFormattedDate(state.weatherData.dt!, 'EEE MMM, YYYY'), style: TextStyle(fontSize: 16),),
+                                Text('${state.weatherData.name}, ${state.weatherData.sys!.country}', style:  TextStyle(fontSize: 22),),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    Image.network('$icon_prefix${state.weatherData.weather![0].icon}$icon_suffix', width: 50, height: 50, fit: BoxFit.cover,),
+                                    Text('${state.weatherData.main!.temp!.toStringAsFixed(2)}\u00B0',style:  TextStyle(fontSize: 80),),
+                                  ],
+                                ),
+                                Text('feels like ${state.weatherData.main!.feelsLike!.round()}\u00B0', style: TextStyle(fontSize: 20),),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.network('$icon_prefix${state.weatherData.weather![0].icon}$icon_suffix', width: 50, height: 50, fit: BoxFit.cover,),
+                                    Text('${state.weatherData.weather![0].description}')
+                                  ],
+                                ),
                               ],
-                            ),
-                          ),
+                            )
+                         ]
+                    )
+                  );
+                  // print('Current Weather: $currentWeatherData');
+                }else if(state is CurrentWeatherError){
+                  return Text('Failed to load current weather data');
+                }else{
+                  return SizedBox();
+                }
+              },
+            ),
+
+           SizedBox(height: 20,),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: BlocBuilder<ForecastWeatherBloc, ForecastWeatherState>(
+                  builder: (context, state){
+                    if(state is ForecastWeatherLoading){
+                      return const SizedBox();
+                    }else if(state is ForecastWeatherLoaded){
+
+                      return SizedBox(
+                        width: double.maxFinite,
+                        height: 200,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: state.weatherData.list!.length,
+                          itemBuilder: (context, i){
+                            final item = state.weatherData.list![i];
+                            final forecastDate = state.weatherData.list![0].dt!.toInt();
+                            return Card(
+                              color: Colors.black12.withOpacity(0.3),
+                              margin: EdgeInsets.all(4),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Text(formattedDate(item.dt)),
+
+                                      Text(formattedDate(forecastDate),style: TextStyle(color: Colors.white),),
+                                      Image.network('$icon_prefix${item.weather![0].icon}$icon_suffix', width: 50, height: 50, fit: BoxFit.cover,),
+                                      Text('${item.main!.tempMax!.round()}/${item.main!.tempMin!.round()}\u00B0',style: TextStyle(color: Colors.white)),
+                                      Text(item.weather![0].description!, style: TextStyle(color: Colors.white))
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       );
-                    },
-                  ),
-                )
-              ],
+                    }else if(state is ForecastWeatherError){
+                      return Text('Failed to load forecast weather data');
+                    }else{
+                      return Container();
+                    }
+                  },
+                ),
             ),
-          )
+          ),
         ],
-      ) : const Center(child: CircularProgressIndicator(),),
+      )
     );
   }
 }

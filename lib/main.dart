@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
-import 'package:weather_app/provider/weather_provider.dart';
+import 'package:weather_app/bloc/forecast_weather_bloc.dart';
+import 'package:weather_app/bloc/weather_bloc.dart';
+import 'package:weather_app/repo/weather_repo.dart';
 import 'package:weather_app/screens/settings_page.dart';
 import 'package:weather_app/screens/weather_home_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(RepositoryProvider(
+      create: (context) => WeatherRepo(),
+  child: const MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -14,22 +19,30 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: ((context) => WeatherProvider()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) => CurrentWeatherBloc(WeatherRepo()),
+        ),
+        BlocProvider(create: (context)=> ForecastWeatherBloc(WeatherRepo()),
+        ),
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Flutter Demo',
         theme: ThemeData(
-          // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-          fontFamily: 'RobotoSlab',
-          primarySwatch: Colors.blue,
-          brightness: Brightness.dark
-        ),
-        home: WeatherHomeScreen(),
+        // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        fontFamily: 'RobotoSlab',
+        primarySwatch: Colors.blue,
+        // brightness: Brightness.dark
+      ),
+        home:
+        // WeatherHomePage(),
+        WeatherHomeScreen(),
         routes: {
           WeatherHomeScreen.routeName: (context) => WeatherHomeScreen(),
-          SettingsPage.routeName: (context) => SettingsPage(),
+          // SettingsPage.routeName: (context) => SettingsPage(),
         },
       ),
     );
